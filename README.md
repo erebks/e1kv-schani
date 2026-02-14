@@ -1,6 +1,26 @@
 # e1kv-schani
 Helping you fill out the E1kv form for the Austrian capital gains tax reporting
 
+# TL;DR
+```
+python3 schani.py
+```
+
+# How to use
+1. Get your CSVs from schwab
+2. Set Pmavg (EUR) and stock quantity of the previous year (If it's your very first year, just use 0)
+3. Run `schani.py`
+
+# Where to get the documents?
+## Individual_Transactions.csv
+* Navigate to Schwab and choose "Accounts" -> "Transaction History"
+* Choose your "Individual" account (Blue drop-down list at the top left)
+* Choose date range and download CSV
+## EquityAwardsCenter.csv
+* Navigate to Schwab and choose "Accounts" -> "Transaction History"
+* Choose your "Equity Award Center" account (Blue drop-down list at the top left)
+* Choose date range and download CSV
+
 # Disclaimer
 This script is provided for informational and personal use only.
 It is based solely on my own understanding and interpretation of Austrian tax rules and publicly available information at the time of writing.
