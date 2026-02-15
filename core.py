@@ -64,7 +64,7 @@ class Event:
 def parse_money(value: str) -> float:
     if not value:
         return 0.0
-    return float(value.replace("$", "").replace(",", ".").strip())
+    return float(value.replace("$", "").replace(",", "").strip())
 
 
 def parse_equity_award_csv(path: str, symbol: str, fx: FXRates, taxyear: int) -> list[Event]:
@@ -100,7 +100,7 @@ def parse_equity_award_csv(path: str, symbol: str, fx: FXRates, taxyear: int) ->
                     Event(
                         date=date,
                         type="lapse",
-                        qty=float(pending_lapse["Quantity"]),
+                        qty=float(pending_lapse["Quantity"].replace(",", "")),
                         price=eur_price,
                         fx_rate=fx.rate_on(date),
                     )
@@ -138,7 +138,7 @@ def parse_brokerage_csv(path: str, symbol: str, fx: FXRates, taxyear: int) -> li
                 Event(
                     date=date,
                     type="sell",
-                    qty=float(row["Quantity"]),
+                    qty=float(row["Quantity"].replace(",", "")),
                     price=eur_price,
                     fx_rate=fx.rate_on(date),
                     fees=eur_fees,
