@@ -67,7 +67,7 @@ def parse_money(value: str) -> float:
     return float(value.replace("$", "").replace(",", ".").strip())
 
 
-def parse_equity_award_csv(path: str, symbol: str, fx: FXRates) -> list[Event]:
+def parse_equity_award_csv(path: str, symbol: str, fx: FXRates, taxyear: int) -> list[Event]:
     events = []
     pending_lapse = None
 
@@ -80,6 +80,14 @@ def parse_equity_award_csv(path: str, symbol: str, fx: FXRates) -> list[Event]:
                     raise ValueError(
                         "For now this script only supports a single trade symbol"
                     )
+
+                date = datetime.strptime(row["Date"], "%m/%d/%Y")
+
+                # Ignore lapses outside tax year
+                if date.year != taxyear:
+                    pending_lapse = None
+                    continue
+
                 pending_lapse = row
                 continue
 
@@ -102,7 +110,7 @@ def parse_equity_award_csv(path: str, symbol: str, fx: FXRates) -> list[Event]:
     return events
 
 
-def parse_brokerage_csv(path: str, symbol: str, fx: FXRates) -> list[Event]:
+def parse_brokerage_csv(path: str, symbol: str, fx: FXRates, taxyear: int) -> list[Event]:
     events = []
 
     with open(path, newline="", encoding="utf-8") as f:
@@ -118,6 +126,11 @@ def parse_brokerage_csv(path: str, symbol: str, fx: FXRates) -> list[Event]:
                 )
 
             date = datetime.strptime(row["Date"], "%m/%d/%Y")
+
+            # Skip transactions outside taxyear
+            if date.year != taxyear:
+                continue
+
             eur_price = parse_money(row["Price"]) * fx.rate_on(date)
             eur_fees = parse_money(row.get("Fees & Comm")) * fx.rate_on(date)
 

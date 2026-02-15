@@ -66,10 +66,10 @@ def main():
 
     events = []
     events += parse_equity_award_csv(
-        args.equity_csv, args.symbol, fx
+        args.equity_csv, args.symbol, fx, args.taxyear
     )
     events += parse_brokerage_csv(
-        args.broker_csv, args.symbol, fx
+        args.broker_csv, args.symbol, fx, args.taxyear
     )
 
     pmavg_end, qty_end, realized_pl, audit_logs = process_events_with_audit(
@@ -99,7 +99,7 @@ def main():
         if log.realized_pl_eur and log.realized_pl_eur < 0
     )
 
-    print("\nYear summary:")
+    print(f"\nYear {args.taxyear} summary:")
     print(f"\tEnd of year PMAVG (EUR): {round(pmavg_end, 6)}")
     print(f"\tEnd of year stock quantity: {qty_end}")
     print(f"\tRealized P/L (EUR): {round(realized_pl, 2)}")
