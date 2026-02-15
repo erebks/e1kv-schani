@@ -2,8 +2,27 @@
 Helping you fill out the E1kv form for the Austrian capital gains tax reporting
 
 # TL;DR
+```bash
+python e1kv.py \
+  --taxyear 2024 \
+  --symbol ASDF \
+  --broker-csv Individual_Transactions.csv \
+  --equity-csv EquityAwardsCenter.csv \
+  --pmavg-start 0.0 \
+  --qty-start 0 \
+  --audit-format human
 ```
-python3 schani.py
+
+```bash
+python e1kv.py \
+  --taxyear 2024 \
+  --symbol ASDF \
+  --broker-csv Individual_Transactions.csv \
+  --equity-csv EquityAwardsCenter.csv \
+  --pmavg-start 0.0 \
+  --qty-start 0 \
+  --audit-format csv \
+  --audit-output audit_2024.csv
 ```
 
 # How to use
