@@ -164,6 +164,28 @@ def parse_brokerage_csv(
                         fees_eur=eur_fees,
                     )
                 )
+            elif row.get("Action") == "Buy":
+                if row.get("Symbol") != symbol:
+                    print(f"Symbol mismatch. Ignoring row '{row}'")
+                    continue
+
+                usd_price = parse_money(row["Price"])
+                eur_price = usd_price * fx.rate_on(date)
+                usd_fees = parse_money(row.get("Fees & Comm"))
+                eur_fees = usd_fees * fx.rate_on(date)
+
+                events.append(
+                    Event(
+                        date=date,
+                        type="buy",
+                        qty=float(row["Quantity"].replace(",", "")),
+                        price=usd_price,
+                        price_eur=eur_price,
+                        fx_rate=fx.rate_on(date),
+                        fees=usd_fees,
+                        fees_eur=eur_fees,
+                    )
+                )
             else:
                 # If we land here, raise exception! We're at risk of reporting something wrong
                 s = f"Unhandled row in brokerage parsing. Row: '{row}'"
@@ -198,6 +220,29 @@ def process_events_with_audit(
                 AuditLog(
                     date=e.date,
                     event_type="LAPSE",
+                    qty=e.qty,
+                    unit_price_usd=e.price,
+                    unit_price_eur=e.price_eur,
+                    fx_rate=e.fx_rate,
+                    qty_before=qty_before,
+                    pmavg_before=pmavg_before,
+                    qty_after=qty,
+                    pmavg_after=pmavg,
+                    cost_basis_eur=acquisition_value,
+                )
+            )
+
+        if e.type == "buy":
+            acquisition_value = e.price_eur * e.qty
+            total_cost = pmavg * qty + acquisition_value
+
+            qty += e.qty
+            pmavg = total_cost / qty
+
+            audit_logs.append(
+                AuditLog(
+                    date=e.date,
+                    event_type="BUY",
                     qty=e.qty,
                     unit_price_usd=e.price,
                     unit_price_eur=e.price_eur,
