@@ -37,8 +37,9 @@ class AuditLog:
     event_type: str
 
     qty: float
-    unit_price_eur: float
+    unit_price_usd: float
     fx_rate: float
+    unit_price_eur: float
 
     qty_before: float
     pmavg_before: float
@@ -56,9 +57,11 @@ class Event:
     date: datetime
     type: str
     qty: float
-    price: float  # EUR
+    price: float
+    price_eur: float
     fx_rate: float
     fees: float = 0.0
+    fees_eur: float = 0.0
 
 
 def parse_money(value: str) -> float:
@@ -100,7 +103,8 @@ def parse_equity_award_csv(
                         date=date,
                         type="lapse",
                         qty=float(pending_lapse["Quantity"].replace(",", "")),
-                        price=eur_price,
+                        price=usd_price,
+                        price_eur=eur_price,
                         fx_rate=fx.rate_on(date),
                     )
                 )
@@ -143,17 +147,21 @@ def parse_brokerage_csv(
                     print(f"Symbol mismatch. Ignoring row '{row}'")
                     continue
 
-                eur_price = parse_money(row["Price"]) * fx.rate_on(date)
-                eur_fees = parse_money(row.get("Fees & Comm")) * fx.rate_on(date)
+                usd_price = parse_money(row["Price"])
+                eur_price = usd_price * fx.rate_on(date)
+                usd_fees = parse_money(row.get("Fees & Comm"))
+                eur_fees = usd_fees * fx.rate_on(date)
 
                 events.append(
                     Event(
                         date=date,
                         type="sell",
                         qty=float(row["Quantity"].replace(",", "")),
-                        price=eur_price,
+                        price=usd_price,
+                        price_eur=eur_price,
                         fx_rate=fx.rate_on(date),
-                        fees=eur_fees,
+                        fees=usd_fees,
+                        fees_eur=eur_fees,
                     )
                 )
             else:
@@ -180,7 +188,7 @@ def process_events_with_audit(
         pmavg_before = pmavg
 
         if e.type == "lapse":
-            acquisition_value = e.price * e.qty
+            acquisition_value = e.price_eur * e.qty
             total_cost = pmavg * qty + acquisition_value
 
             qty += e.qty
@@ -191,7 +199,8 @@ def process_events_with_audit(
                     date=e.date,
                     event_type="LAPSE",
                     qty=e.qty,
-                    unit_price_eur=e.price,
+                    unit_price_usd=e.price,
+                    unit_price_eur=e.price_eur,
                     fx_rate=e.fx_rate,
                     qty_before=qty_before,
                     pmavg_before=pmavg_before,
@@ -202,7 +211,7 @@ def process_events_with_audit(
             )
 
         elif e.type == "sell":
-            proceeds = e.price * e.qty - e.fees
+            proceeds = e.price_eur * e.qty - e.fees_eur
             cost_basis = pmavg * e.qty
             realized_pl = proceeds - cost_basis
 
@@ -217,7 +226,8 @@ def process_events_with_audit(
                     date=e.date,
                     event_type="SELL",
                     qty=e.qty,
-                    unit_price_eur=e.price,
+                    unit_price_usd=e.price,
+                    unit_price_eur=e.price_eur,
                     fx_rate=e.fx_rate,
                     qty_before=qty_before,
                     pmavg_before=pmavg_before,

@@ -35,8 +35,9 @@ def format_audit_human(log: AuditLog) -> str:
     lines = [
         f"{log.date.date()} | {log.event_type}",
         f"  Qty: {log.qty}",
-        f"  Unit price (EUR): {round(log.unit_price_eur, 6)}",
+        f"  Unit price (USD): {round(log.unit_price_usd, 6)}",
         f"  FX rate: {round(log.fx_rate, 6)}",
+        f"  Unit price (EUR): {round(log.unit_price_eur, 6)}",
         f"  Qty before: {log.qty_before}",
         f"  PMAVG before: {round(log.pmavg_before, 6)}",
         f"  Qty after: {log.qty_after}",
