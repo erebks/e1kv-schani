@@ -79,15 +79,7 @@ def parse_equity_award_csv(
         for row in reader:
             if row.get("Action") == "Lapse":
                 if row.get("Symbol") != symbol:
-                    raise ValueError(
-                        "For now this script only supports a single trade symbol"
-                    )
-
-                date = datetime.strptime(row["Date"], "%m/%d/%Y")
-
-                # Ignore lapses outside tax year
-                if date.year != taxyear:
-                    pending_lapse = None
+                    print(f"Symbol mismatch. Ignoring row '{row}'")
                     continue
 
                 pending_lapse = row
@@ -95,6 +87,11 @@ def parse_equity_award_csv(
 
             if pending_lapse and row.get("FairMarketValuePrice"):
                 date = datetime.strptime(pending_lapse["Date"], "%m/%d/%Y")
+                # Ignore lapses outside tax year
+                if date.year != taxyear:
+                    pending_lapse = None
+                    continue
+
                 usd_price = parse_money(row["FairMarketValuePrice"])
                 eur_price = usd_price * fx.rate_on(date)
 
@@ -108,6 +105,11 @@ def parse_equity_award_csv(
                     )
                 )
                 pending_lapse = None
+                continue
+
+            # If we land here, raise exception! We're at risk of reporting something wrong
+            s = f"Unhandled row in equity center parsing. Row: '{row}'"
+            raise ValueError(s)
 
     return events
 
@@ -121,37 +123,45 @@ def parse_brokerage_csv(
         reader = csv.DictReader(f, delimiter=",")
 
         for row in reader:
-            if row.get("Action") != "Sell":
-                continue
-
-            if row.get("Symbol") != symbol:
-                raise ValueError(
-                    "For now this script only supports a single trade symbol"
-                )
-
             date = datetime.strptime(row["Date"], "%m/%d/%Y")
-
             # Skip transactions outside taxyear
             if date.year != taxyear:
                 continue
 
-            eur_price = parse_money(row["Price"]) * fx.rate_on(date)
-            eur_fees = parse_money(row.get("Fees & Comm")) * fx.rate_on(date)
+            if (
+                row.get("Action") == "MoneyLink Transfer"
+                or row.get("Action") == "Stock Plan Activity"
+                or row.get("Action") == "Journal"
+            ):
+                # We can safely ignore those
+                continue
+            elif row.get("Action") == "Credit Interest":
+                # Todo: I guess this one should be relevant for Kennziffer 861?
+                continue
+            elif row.get("Action") == "Sell":
+                if row.get("Symbol") != symbol:
+                    print(f"Symbol mismatch. Ignoring row '{row}'")
+                    continue
 
-            events.append(
-                Event(
-                    date=date,
-                    type="sell",
-                    qty=float(row["Quantity"].replace(",", "")),
-                    price=eur_price,
-                    fx_rate=fx.rate_on(date),
-                    fees=eur_fees,
+                eur_price = parse_money(row["Price"]) * fx.rate_on(date)
+                eur_fees = parse_money(row.get("Fees & Comm")) * fx.rate_on(date)
+
+                events.append(
+                    Event(
+                        date=date,
+                        type="sell",
+                        qty=float(row["Quantity"].replace(",", "")),
+                        price=eur_price,
+                        fx_rate=fx.rate_on(date),
+                        fees=eur_fees,
+                    )
                 )
-            )
+            else:
+                # If we land here, raise exception! We're at risk of reporting something wrong
+                s = f"Unhandled row in brokerage parsing. Row: '{row}'"
+                raise ValueError(s)
 
     return events
-
-
 
 
 def process_events_with_audit(
