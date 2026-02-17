@@ -211,7 +211,7 @@ def process_events_with_audit(
             )
 
         elif e.type == "sell":
-            proceeds = e.price_eur * e.qty - e.fees_eur
+            proceeds = e.price_eur * e.qty
             cost_basis = pmavg * e.qty
             realized_pl = proceeds - cost_basis
 
