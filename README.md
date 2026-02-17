@@ -1,5 +1,5 @@
 # e1kv-schani
-Helping you fill out the E1kv form for the Austrian capital gains tax reporting
+Your [Schani](https://de.wiktionary.org/wiki/Schani) for the Austrian E1kv tax reporting
 
 # TL;DR
 ```bash
@@ -25,12 +25,22 @@ python schani.py \
   --audit-output audit_2024.csv
 ```
 
-# How to use
-1. Get your CSVs from schwab
-2. Set Pmavg (EUR) and stock quantity of the previous year (If it's your very first year, just use 0)
-3. Run `schani.py`
+# How it works
+
+At its core, this tool consists of two main components:
+1. CSV parsers that read the broker and equity award files and normalize all relevant transactions into a sequence of standardized events (e.g. lapse, sell, buy).
+2. An event processor that processes these events in chronological order and calculates the realized profit or loss.
+
+Under Austrian tax law, capital gains on shares must be calculated using the moving average cost method (["Gleitender Durchschnittspreisverfahren"](https://de.wikipedia.org/wiki/Gleitender_Durchschnittspreis)).
+This means that, for each sale, the acquisition cost is determined based on the current moving average price.
+
+To apply this method correctly, the tool requires the moving average price (`pmavg`) and the share quantity (`qty`) at the end of the previous tax year as input parameters.
+With this approach, each tax year can be processed independently, without having to re-process the complete transaction history from the first acquisition onward.
+
+If, at any point, the quantity of the relevant stock held is reduced to zero (either because it was never held or because all shares were sold), the moving average price (`pmavg`) is reset to zero.
 
 # Where to get the documents?
+Currently we only support exports from [Schwab](https://www.schwab.com/brokerage).
 ## Individual_Transactions.csv
 * Navigate to Schwab and choose "Accounts" -> "Transaction History"
 * Choose your "Individual" account (Blue drop-down list at the top left)
