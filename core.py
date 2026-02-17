@@ -67,7 +67,9 @@ def parse_money(value: str) -> float:
     return float(value.replace("$", "").replace(",", "").strip())
 
 
-def parse_equity_award_csv(path: str, symbol: str, fx: FXRates, taxyear: int) -> list[Event]:
+def parse_equity_award_csv(
+    path: str, symbol: str, fx: FXRates, taxyear: int
+) -> list[Event]:
     events = []
     pending_lapse = None
 
@@ -110,7 +112,9 @@ def parse_equity_award_csv(path: str, symbol: str, fx: FXRates, taxyear: int) ->
     return events
 
 
-def parse_brokerage_csv(path: str, symbol: str, fx: FXRates, taxyear: int) -> list[Event]:
+def parse_brokerage_csv(
+    path: str, symbol: str, fx: FXRates, taxyear: int
+) -> list[Event]:
     events = []
 
     with open(path, newline="", encoding="utf-8") as f:
@@ -148,7 +152,6 @@ def parse_brokerage_csv(path: str, symbol: str, fx: FXRates, taxyear: int) -> li
     return events
 
 
-from typing import List, Tuple
 
 
 def process_events_with_audit(
