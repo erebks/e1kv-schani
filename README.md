@@ -3,7 +3,7 @@ Helping you fill out the E1kv form for the Austrian capital gains tax reporting
 
 # TL;DR
 ```bash
-python e1kv.py \
+python schani.py \
   --taxyear 2024 \
   --symbol ASDF \
   --broker-csv Individual_Transactions.csv \
@@ -14,7 +14,7 @@ python e1kv.py \
 ```
 
 ```bash
-python e1kv.py \
+python schani.py \
   --taxyear 2024 \
   --symbol ASDF \
   --broker-csv Individual_Transactions.csv \
