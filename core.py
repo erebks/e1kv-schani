@@ -136,6 +136,7 @@ def parse_brokerage_csv(
                 row.get("Action") == "MoneyLink Transfer"
                 or row.get("Action") == "Stock Plan Activity"
                 or row.get("Action") == "Journal"
+                or row.get("Action") == "Wire Sent"
             ):
                 # We can safely ignore those
                 continue
