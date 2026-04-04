@@ -15,8 +15,8 @@ def parse_args():
     p.add_argument("--broker-csv", required=True)
     p.add_argument("--equity-csv", required=True)
 
-    p.add_argument("--pmavg-start", type=float, default=0.0)
-    p.add_argument("--qty-start", type=float, default=0.0)
+    p.add_argument("--pmavg-start", type=str, default="0.0")
+    p.add_argument("--qty-start", type=str, default="0.0")
 
     p.add_argument(
         "--audit-format",
@@ -75,8 +75,8 @@ def main():
 
     pmavg_end, qty_end, realized_pl, audit_logs = process_events_with_audit(
         events,
-        pmavg_start=args.pmavg_start,
-        qty_start=args.qty_start,
+        pmavg_start=Decimal(args.pmavg_start),
+        qty_start=Decimal(args.qty_start),
     )
 
     # ---- AUDIT OUTPUT ----

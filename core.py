@@ -3,6 +3,18 @@ from datetime import datetime, timedelta
 import csv
 from typing import List, Tuple, Optional
 import requests
+from decimal import Decimal, getcontext, ROUND_HALF_UP
+
+# ---- Decimal config ----
+getcontext().prec = 28
+
+
+def D(x) -> Decimal:
+    return Decimal(str(x))
+
+
+def round_eur(x: Decimal) -> Decimal:
+    return x.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 class FXRates:
@@ -17,13 +29,12 @@ class FXRates:
         )
         data = requests.get(url).json()["rates"]
 
-        # normalize to datetime -> float
-        rates = {
-            datetime.strptime(d, "%Y-%m-%d").date(): v["EUR"] for d, v in data.items()
+        return {
+            datetime.strptime(d, "%Y-%m-%d").date(): D(v["EUR"])
+            for d, v in data.items()
         }
-        return dict(sorted(rates.items()))
 
-    def rate_on(self, date: datetime) -> float:
+    def rate_on(self, date: datetime) -> Decimal:
         """ECB rule: use last available previous rate"""
         d = date.date()
         while d not in self.rates:
@@ -36,38 +47,38 @@ class AuditLog:
     date: datetime
     event_type: str
 
-    qty: float
-    unit_price_usd: float
-    fx_rate: float
-    unit_price_eur: float
+    qty: Decimal
+    unit_price_usd: Decimal
+    fx_rate: Decimal
+    unit_price_eur: Decimal
 
-    qty_before: float
-    pmavg_before: float
+    qty_before: Decimal
+    pmavg_before: Decimal
 
-    qty_after: float
-    pmavg_after: float
+    qty_after: Decimal
+    pmavg_after: Decimal
 
-    proceeds_eur: Optional[float] = None
-    cost_basis_eur: Optional[float] = None
-    realized_pl_eur: Optional[float] = None
+    proceeds_eur: Optional[Decimal] = None
+    cost_basis_eur: Optional[Decimal] = None
+    realized_pl_eur: Optional[Decimal] = None
 
 
 @dataclass
 class Event:
     date: datetime
     type: str
-    qty: float
-    price: float
-    price_eur: float
-    fx_rate: float
-    fees: float = 0.0
-    fees_eur: float = 0.0
+    qty: Decimal
+    price: Decimal
+    price_eur: Decimal
+    fx_rate: Decimal
+    fees: Decimal = Decimal("0")
+    fees_eur: Decimal = Decimal("0")
 
 
-def parse_money(value: str) -> float:
+def parse_money(value: str) -> Decimal:
     if not value:
-        return 0.0
-    return float(value.replace("$", "").replace(",", "").strip())
+        return Decimal("0")
+    return Decimal(value.replace("$", "").replace(",", "").strip())
 
 
 def parse_equity_award_csv(
@@ -102,7 +113,7 @@ def parse_equity_award_csv(
                     Event(
                         date=date,
                         type="lapse",
-                        qty=float(pending_lapse["Quantity"].replace(",", "")),
+                        qty=D(pending_lapse["Quantity"].replace(",", "")),
                         price=usd_price,
                         price_eur=eur_price,
                         fx_rate=fx.rate_on(date),
@@ -157,7 +168,7 @@ def parse_brokerage_csv(
                     Event(
                         date=date,
                         type="sell",
-                        qty=float(row["Quantity"].replace(",", "")),
+                        qty=D(row["Quantity"].replace(",", "")),
                         price=usd_price,
                         price_eur=eur_price,
                         fx_rate=fx.rate_on(date),
@@ -179,7 +190,7 @@ def parse_brokerage_csv(
                     Event(
                         date=date,
                         type="buy",
-                        qty=float(row["Quantity"].replace(",", "")),
+                        qty=D(row["Quantity"].replace(",", "")),
                         price=usd_price,
                         price_eur=eur_price,
                         fx_rate=fx.rate_on(date),
@@ -197,13 +208,13 @@ def parse_brokerage_csv(
 
 def process_events_with_audit(
     events: List[Event],
-    pmavg_start: float,
-    qty_start: float,
-) -> Tuple[float, float, float, List[AuditLog]]:
+    pmavg_start: Decimal,
+    qty_start: Decimal,
+) -> Tuple[Decimal, Decimal, Decimal, List[AuditLog]]:
 
     pmavg = pmavg_start
     qty = qty_start
-    realized_pl_total = 0.0
+    realized_pl_total = Decimal("0")
     audit_logs: List[AuditLog] = []
 
     for e in sorted(events, key=lambda x: x.date):
