@@ -2,27 +2,39 @@
 Your [Schani](https://de.wiktionary.org/wiki/Schani) for the Austrian E1kv tax reporting
 
 # TL;DR
+## Human audit (first year of trading symbol -> --carry-init)
 ```bash
 python schani.py \
   --taxyear 2024 \
   --symbol ASDF \
   --broker-csv Individual_Transactions.csv \
   --equity-csv EquityAwardsCenter.csv \
-  --pmavg-start 0.0 \
-  --qty-start 0 \
+  --carry-init \
   --audit-format human
 ```
 
+## CSV audit (first year of trading symbol -> --carry-init)
 ```bash
 python schani.py \
   --taxyear 2024 \
   --symbol ASDF \
   --broker-csv Individual_Transactions.csv \
   --equity-csv EquityAwardsCenter.csv \
-  --pmavg-start 0.0 \
-  --qty-start 0 \
+  --carry-init \
   --audit-format csv \
   --audit-output audit_2024.csv
+```
+
+## Following year ( -> --carry-file)
+```bash
+python schani.py \
+  --taxyear 2025 \
+  --symbol ASDF \
+  --broker-csv Individual_Transactions.csv \
+  --equity-csv EquityAwardsCenter.csv \
+  --carry-file carry_ASDF_2024.json \
+  --audit-format csv \
+  --audit-output audit_2025.csv
 ```
 
 # How it works
@@ -38,6 +50,13 @@ To apply this method correctly, the tool requires the moving average price (`pma
 With this approach, each tax year can be processed independently, without having to re-process the complete transaction history from the first acquisition onward.
 
 If, at any point, the quantity of the relevant stock held is reduced to zero (either because it was never held or because all shares were sold), the moving average price (`pmavg`) is reset to zero.
+
+# Carry File / Init
+
+The script allows to load a carry file of the previous year via `--carry-file`. 
+This JSON is automatically generated after each run and contains the `pmavg`, `qty`, `symbol` and `taxyear`.
+
+On your very first year of trading the symbol choose `--carry-init`.
 
 # Where to get the documents?
 Currently we only support exports from [Schwab](https://www.schwab.com/brokerage).
