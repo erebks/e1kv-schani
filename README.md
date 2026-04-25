@@ -62,8 +62,7 @@ On your very first year of trading the symbol choose `--carry-init`.
 The script detects the earliest date automatically and processes every year through today.
 
 ```bash
-python schani.py \
-  --rolling \
+python rollingschani.py \
   --symbol ASDF \
   --broker-csv Individual_Transactions.csv \
   --equity-csv EquityAwardsCenter.csv \
@@ -72,8 +71,7 @@ python schani.py \
 
 CSV audit output (one file per year):
 ```bash
-python schani.py \
-  --rolling \
+python rollingschani.py \
   --symbol ASDF \
   --broker-csv Individual_Transactions.csv \
   --equity-csv EquityAwardsCenter.csv \
