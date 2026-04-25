@@ -1,7 +1,8 @@
 import argparse
-from datetime import datetime
-import sys
+import csv
 import json
+import sys
+from datetime import datetime
 from pathlib import Path
 
 from core import *
@@ -10,7 +11,16 @@ from core import *
 def parse_args():
     p = argparse.ArgumentParser(description="E1kv Schani")
 
-    p.add_argument("--taxyear", type=int, required=True)
+    mode = p.add_mutually_exclusive_group(required=True)
+    mode.add_argument(
+        "--taxyear", type=int, help="Single tax year to process (original mode)"
+    )
+    mode.add_argument(
+        "--rolling",
+        action="store_true",
+        help="Auto-detect earliest date in CSVs and roll through to today",
+    )
+
     p.add_argument("--symbol", type=str, required=True)
 
     p.add_argument("--broker-csv", required=True)
@@ -19,10 +29,12 @@ def parse_args():
     p.add_argument(
         "--carry-init",
         action="store_true",
-        help="Initialize PMAVG/QTY carry (use on first year)",
+        help="Initialize PMAVG/QTY carry from zero (first year, single-year mode only)",
     )
 
-    p.add_argument("--carry-file", help="Path to carry-forward JSON file")
+    p.add_argument(
+        "--carry-file", help="Path to carry-forward JSON file (single-year mode only)"
+    )
 
     p.add_argument(
         "--audit-format",
@@ -31,7 +43,8 @@ def parse_args():
     )
 
     p.add_argument(
-        "--audit-output", help="Path to audit CSV (required if audit-format=csv)"
+        "--audit-output",
+        help="Path to audit CSV (single-year) or filename prefix (rolling: prefix_SYMBOL_YEAR.csv)",
     )
 
     return p.parse_args()
@@ -95,34 +108,49 @@ def save_carry(path: str, taxyear: int, symbol: str, pmavg: Decimal, qty: Decima
         json.dump(data, f, indent=2)
 
 
-def main():
-    args = parse_args()
+def detect_start_year(broker_csv: str, equity_csv: str) -> int:
+    """Scan both CSVs and return the earliest year found across all rows."""
+    earliest = None
 
-    if args.audit_format == "csv" and not args.audit_output:
-        print("ERROR: --audit-output required when --audit-format=csv")
-        sys.exit(1)
+    for path in [broker_csv, equity_csv]:
+        with open(path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                raw = row.get("Date")
+                if not raw:
+                    continue
+                try:
+                    year = datetime.strptime(raw.strip(), "%m/%d/%Y").year
+                    if earliest is None or year < earliest:
+                        earliest = year
+                except ValueError:
+                    continue
 
-    year_start = datetime(args.taxyear, 1, 1)
-    year_end = datetime(args.taxyear, 12, 31)
+    if earliest is None:
+        raise ValueError("Could not detect a start year from the provided CSV files.")
+
+    return earliest
+
+
+def run_single_year(
+    taxyear: int,
+    symbol: str,
+    broker_csv: str,
+    equity_csv: str,
+    pmavg_start: Decimal,
+    qty_start: Decimal,
+    audit_format: str,
+    audit_output: str | None,
+):
+    """Process a single tax year and return (pmavg_end, qty_end, audit_logs)."""
+    year_start = datetime(taxyear, 1, 1)
+    year_end = datetime(taxyear, 12, 31)
 
     fx = FXRates(year_start, year_end)
 
     events = []
-    events += parse_equity_award_csv(args.equity_csv, args.symbol, fx, args.taxyear)
-    events += parse_brokerage_csv(args.broker_csv, args.symbol, fx, args.taxyear)
-
-    if args.carry_file and args.carry_init:
-        print(
-            f"Arguments --carry-init and --carry-file provided. Use one or the other!"
-        )
-        sys.exit(1)
-
-    if args.carry_init:
-        pmavg_start = Decimal("0")
-        qty_start = Decimal("0")
-
-    if args.carry_file:
-        pmavg_start, qty_start = load_carry(args.carry_file, args.taxyear, args.symbol)
+    events += parse_equity_award_csv(equity_csv, symbol, fx, taxyear)
+    events += parse_brokerage_csv(broker_csv, symbol, fx, taxyear)
 
     pmavg_end, qty_end, realized_pl, audit_logs = process_events_with_audit(
         events,
@@ -130,48 +158,153 @@ def main():
         qty_start=qty_start,
     )
 
-    # ---- AUDIT OUTPUT ----
-    if args.audit_format == "human":
+    if audit_format == "human":
         for log in audit_logs:
             print(format_audit_human(log))
-    else:
-        export_audit_csv(audit_logs, args.audit_output)
-        print(f"Audit CSV written to {args.audit_output}")
+    elif audit_format == "csv" and audit_output:
+        export_audit_csv(audit_logs, audit_output)
+        print(f"  Audit CSV written to {audit_output}")
 
-    # ---- E1KV AGGREGATION ----
+    return pmavg_end, qty_end, audit_logs
+
+
+def print_year_summary(
+    taxyear, pmavg_start, qty_start, pmavg_end, qty_end, audit_logs, carry_out=None
+):
     total_gains = sum(
         log.realized_pl_eur
         for log in audit_logs
         if log.realized_pl_eur and log.realized_pl_eur > 0
     )
-
     total_losses = sum(
         -log.realized_pl_eur
         for log in audit_logs
         if log.realized_pl_eur and log.realized_pl_eur < 0
     )
+    net = total_gains - total_losses
+    sign = "+" if net >= 0 else ""
 
-    carry_out = f"carry_{args.symbol}_{args.taxyear}.json"
+    print(f"\n{'=' * 60}")
+    print(f"  Year {taxyear} summary")
+    print(f"{'=' * 60}")
+    print(f"  Start of year PMAVG (EUR):   {round(pmavg_start, 2)}")
+    print(f"  Start of year qty:           {qty_start}")
+    print(f"  End of year PMAVG (EUR):     {round(pmavg_end, 2)}")
+    print(f"  End of year qty:             {qty_end}")
+    if carry_out:
+        print(f"  Carry file:                  {carry_out}")
+    print(f"\n  E1kv:")
+    print(f"    Kennzahl 994 (gains):      {round(total_gains, 2)} EUR")
+    print(f"    Kennzahl 892 (losses):     {round(total_losses, 2)} EUR")
+    print(f"    Net realized P/L:          {sign}{round(net, 2)} EUR")
 
-    save_carry(
-        carry_out,
-        args.taxyear,
-        args.symbol,
-        pmavg_end,
-        qty_end,
+
+def rolling_mode(args):
+    """Auto-detect start year from CSVs and process through to today."""
+    current_year = datetime.today().year
+
+    print(f"\nDetecting earliest date in CSV files...")
+    start_year = detect_start_year(args.broker_csv, args.equity_csv)
+    print(f"Earliest year found: {start_year}")
+
+    if args.audit_format == "csv" and not args.audit_output:
+        print("ERROR: --audit-output prefix required when --audit-format=csv")
+        sys.exit(1)
+
+    pmavg = Decimal("0")
+    qty = Decimal("0")
+
+    print(f"\nRolling mode: processing {start_year} -> {current_year}")
+    print(f"Symbol: {args.symbol}\n")
+
+    for year in range(start_year, current_year + 1):
+        pmavg_start = pmavg
+        qty_start = qty
+
+        print(f"\n--- Processing {year} ---")
+
+        audit_out = None
+        if args.audit_format == "csv":
+            audit_out = f"{args.audit_output}_{args.symbol}_{year}.csv"
+
+        try:
+            pmavg, qty, audit_logs = run_single_year(
+                taxyear=year,
+                symbol=args.symbol,
+                broker_csv=args.broker_csv,
+                equity_csv=args.equity_csv,
+                pmavg_start=pmavg_start,
+                qty_start=qty_start,
+                audit_format=args.audit_format,
+                audit_output=audit_out,
+            )
+        except Exception as e:
+            print(f"  [!] Error processing {year}: {e}")
+            sys.exit(1)
+
+        carry_out = f"carry_{args.symbol}_{year}.json"
+        save_carry(carry_out, year, args.symbol, pmavg, qty)
+
+        print_year_summary(
+            year, pmavg_start, qty_start, pmavg, qty, audit_logs, carry_out
+        )
+
+    # ---- Current position ----
+    print(f"\n{'=' * 60}")
+    print(f"  Current position (as of today)")
+    print(f"{'=' * 60}")
+    print(f"  Shares held:       {qty}")
+    print(f"  PMAVG cost basis:  {round(pmavg, 2)} EUR/share")
+    print(f"  Total cost basis:  {round(pmavg * qty, 2)} EUR")
+
+
+def single_year_mode(args):
+    if args.audit_format == "csv" and not args.audit_output:
+        print("ERROR: --audit-output required when --audit-format=csv")
+        sys.exit(1)
+
+    if args.carry_file and args.carry_init:
+        print(
+            "ERROR: --carry-init and --carry-file are mutually exclusive. Use one or the other!"
+        )
+        sys.exit(1)
+
+    if not args.carry_init and not args.carry_file:
+        print("ERROR: Provide either --carry-init (first year) or --carry-file <path>")
+        sys.exit(1)
+
+    if args.carry_init:
+        pmavg_start = Decimal("0")
+        qty_start = Decimal("0")
+    else:
+        pmavg_start, qty_start = load_carry(args.carry_file, args.taxyear, args.symbol)
+
+    pmavg_end, qty_end, audit_logs = run_single_year(
+        taxyear=args.taxyear,
+        symbol=args.symbol,
+        broker_csv=args.broker_csv,
+        equity_csv=args.equity_csv,
+        pmavg_start=pmavg_start,
+        qty_start=qty_start,
+        audit_format=args.audit_format,
+        audit_output=args.audit_output,
     )
 
-    print(f"\nYear {args.taxyear} summary:")
-    print(f"\tStart of year PMAVG (EUR): {round(pmavg_start, 2)}")
-    print(f"\tStart of year stock quantity: {qty_start}")
-    print(f"\tEnd of year PMAVG (EUR): {round(pmavg_end, 2)}")
-    print(f"\tEnd of year stock quantity: {qty_end}")
-    print(f"\tCarry file written to '{carry_out}'")
-    print(f"\tRealized P/L (EUR): {round(realized_pl, 2)}")
+    carry_out = f"carry_{args.symbol}_{args.taxyear}.json"
+    save_carry(carry_out, args.taxyear, args.symbol, pmavg_end, qty_end)
 
-    print("\nE1kv:")
-    print(f"\tKennzahl 994: {round(total_gains, 2)}")
-    print(f"\tKennzahl 892: {round(total_losses, 2)}")
+    print_year_summary(
+        args.taxyear, pmavg_start, qty_start, pmavg_end, qty_end, audit_logs, carry_out
+    )
+
+
+def main():
+    args = parse_args()
+
+    if args.rolling:
+        rolling_mode(args)
+    else:
+        single_year_mode(args)
 
 
 if __name__ == "__main__":
