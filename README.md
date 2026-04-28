@@ -58,12 +58,36 @@ This JSON is automatically generated after each run and contains the `pmavg`, `q
 
 On your very first year of trading the symbol choose `--carry-init`.
 
+# Rolling mode
+The script detects the earliest date automatically and processes every year through today.
+
+```bash
+python rollingschani.py \
+  --symbol ASDF \
+  --broker-csv Individual_Transactions.csv \
+  --equity-csv EquityAwardsCenter.csv \
+  --audit-format human
+```
+
+CSV audit output (one file per year):
+```bash
+python rollingschani.py \
+  --symbol ASDF \
+  --broker-csv Individual_Transactions.csv \
+  --equity-csv EquityAwardsCenter.csv \
+  --audit-format csv \
+  --audit-output audit
+```
+This produces `audit_ASDF_2024.csv`, `audit_ASDF_2025.csv`, etc. Carry files (`carry_ASDF_2024.json`, ...) are always written automatically alongside.
+
 # Where to get the documents?
 Currently we only support exports from [Schwab](https://www.schwab.com/brokerage).
+
 ## Individual_Transactions.csv
 * Navigate to Schwab and choose "Accounts" -> "Transaction History"
 * Choose your "Individual" account (Blue drop-down list at the top left)
 * Choose date range and download CSV
+
 ## EquityAwardsCenter.csv
 * Navigate to Schwab and choose "Accounts" -> "Transaction History"
 * Choose your "Equity Award Center" account (Blue drop-down list at the top left)
