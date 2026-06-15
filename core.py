@@ -81,6 +81,13 @@ def parse_money(value: str) -> Decimal:
     return Decimal(value.replace("$", "").replace(",", "").strip())
 
 
+def parse_schwab_date(value: str) -> datetime:
+    # Schwab sometimes formats the Date as "MM/DD/YYYY as of MM/DD/YYYY"
+    # (posting date vs. settlement/effective date). Use the posting date.
+    value = value.split(" as of ")[0].strip()
+    return datetime.strptime(value, "%m/%d/%Y")
+
+
 def parse_equity_award_csv(
     path: str, symbol: str, fx: FXRates, taxyear: int
 ) -> list[Event]:
@@ -138,7 +145,7 @@ def parse_brokerage_csv(
         reader = csv.DictReader(f, delimiter=",")
 
         for row in reader:
-            date = datetime.strptime(row["Date"], "%m/%d/%Y")
+            date = parse_schwab_date(row["Date"])
             # Skip transactions outside taxyear
             if date.year != taxyear:
                 continue
@@ -148,8 +155,10 @@ def parse_brokerage_csv(
                 or row.get("Action") == "Stock Plan Activity"
                 or row.get("Action") == "Journal"
                 or row.get("Action") == "Wire Sent"
+                or row.get("Action") == "NRA Tax Adj"
+                or row.get("Action") == "Adjustment"
             ):
-                # We can safely ignore those
+                # We can safely ignore those (cash/interest-tax items, no shares)
                 continue
             elif row.get("Action") == "Credit Interest":
                 # Todo: I guess this one should be relevant for Kennziffer 861?

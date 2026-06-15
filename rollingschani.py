@@ -66,7 +66,7 @@ def detect_start_year(broker_csv: str, equity_csv: str) -> int:
                 if not raw:
                     continue
                 try:
-                    year = datetime.strptime(raw.strip(), "%m/%d/%Y").year
+                    year = parse_schwab_date(raw).year
                     if earliest is None or year < earliest:
                         earliest = year
                 except ValueError:
