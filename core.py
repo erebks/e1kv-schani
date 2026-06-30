@@ -157,6 +157,7 @@ def parse_brokerage_csv(
                 or row.get("Action") == "Wire Sent"
                 or row.get("Action") == "NRA Tax Adj"
                 or row.get("Action") == "Adjustment"
+                or row.get("Action") == "Service Fee"
             ):
                 # We can safely ignore those (cash/interest-tax items, no shares)
                 continue
